@@ -792,6 +792,19 @@ func writeModelFiles(tables []*Table, mPath string, selectedTables map[string]bo
 
 // writeControllerFiles generates controller files
 func writeControllerFiles(tables []*Table, cPath string, selectedTables map[string]bool, pkgPath string) {
+	var f *os.File
+	var err error
+	fpath := path.Join(cPath, "g_populate.go")
+	f, err = os.OpenFile(fpath, os.O_CREATE|os.O_RDWR, 0666)
+	if err != nil {
+		ColorLog("[WARN] %v\n", err)
+	}
+	if _, err := f.WriteString(POPULATE_TPL); err != nil {
+		ColorLog("[ERRO] Could not write file to %s\n", fpath)
+		os.Exit(2)
+	}
+	f.Close()
+
 	for _, tb := range tables {
 		// if selectedTables map is not nil and this table is not selected, ignore it
 		if selectedTables != nil {
@@ -1150,12 +1163,72 @@ func Delete{{modelName}}(id int) (err error) {
 	return
 }
 `
+	POPULATE_TPL = `package controllers
+
+import (
+	"fmt"
+	"reflect"
+	"strconv"
+)
+
+func populate(v reflect.Value, value string) error {
+	if !v.CanSet() {
+		return fmt.Errorf("cannot set %s", v.Type())
+	}
+
+	switch v.Kind() {
+	case reflect.String:
+		v.SetString(value)
+
+	case reflect.Int8:
+		i, err := strconv.ParseInt(value, 10, 8)
+		if err != nil {
+			return err
+		}
+		v.SetInt(i)
+
+	case reflect.Int16:
+		i, err := strconv.ParseInt(value, 10, 16)
+		if err != nil {
+			return err
+		}
+		v.SetInt(i)
+
+	case reflect.Int32:
+		i, err := strconv.ParseInt(value, 10, 32)
+		if err != nil {
+			return err
+		}
+		v.SetInt(i)
+
+	case reflect.Int:
+		i, err := strconv.ParseInt(value, 10, 64)
+		if err != nil {
+			return err
+		}
+		v.SetInt(i)
+
+	case reflect.Bool:
+		b, err := strconv.ParseBool(value)
+		if err != nil {
+			return err
+		}
+		v.SetBool(b)
+
+	default:
+		return fmt.Errorf("unsupported kind %s", v.Type())
+	}
+	return nil
+}
+
+`
 	CTRL_TPL = `package controllers
 
 import (
 	"{{pkgPath}}/models"
 	"encoding/json"
 	"errors"
+	"reflect"
 	"strconv"
 	"strings"
 
@@ -1298,56 +1371,6 @@ func (c *{{ctrlName}}Controller) Put() {
 		c.Data["json"] = err.Error()
 	}
 	c.ServeJSON()
-}
-
-func populate(v reflect.Value, value string) error {
-	if !v.CanSet() {
-		return fmt.Errorf("cannot set %s", v.Type())
-	}
-
-	switch v.Kind() {
-	case reflect.String:
-		v.SetString(value)
-
-	case reflect.Int8:
-		i, err := strconv.ParseInt(value, 10, 8)
-		if err != nil {
-			return err
-		}
-		v.SetInt(i)
-
-	case reflect.Int16:
-		i, err := strconv.ParseInt(value, 10, 16)
-		if err != nil {
-			return err
-		}
-		v.SetInt(i)
-
-	case reflect.Int32:
-		i, err := strconv.ParseInt(value, 10, 32)
-		if err != nil {
-			return err
-		}
-		v.SetInt(i)
-
-	case reflect.Int:
-		i, err := strconv.ParseInt(value, 10, 64)
-		if err != nil {
-			return err
-		}
-		v.SetInt(i)
-
-	case reflect.Bool:
-		b, err := strconv.ParseBool(value)
-		if err != nil {
-			return err
-		}
-		v.SetBool(b)
-
-	default:
-		return fmt.Errorf("unsupported kind %s", v.Type())
-	}
-	return nil
 }
 
 // @Title Update a field
