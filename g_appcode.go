@@ -1172,6 +1172,7 @@ func (c *{{ctrlName}}Controller) URLMapping() {
 	c.Mapping("GetOne", c.GetOne)
 	c.Mapping("GetAll", c.GetAll)
 	c.Mapping("Put", c.Put)
+	c.Mapping("PutField", c.PutField)
 	c.Mapping("Delete", c.Delete)
 }
 
@@ -1295,6 +1296,99 @@ func (c *{{ctrlName}}Controller) Put() {
 		}
 	} else {
 		c.Data["json"] = err.Error()
+	}
+	c.ServeJSON()
+}
+
+func populate(v reflect.Value, value string) error {
+	if !v.CanSet() {
+		return fmt.Errorf("cannot set %s", v.Type())
+	}
+
+	switch v.Kind() {
+	case reflect.String:
+		v.SetString(value)
+
+	case reflect.Int8:
+		i, err := strconv.ParseInt(value, 10, 8)
+		if err != nil {
+			return err
+		}
+		v.SetInt(i)
+
+	case reflect.Int16:
+		i, err := strconv.ParseInt(value, 10, 16)
+		if err != nil {
+			return err
+		}
+		v.SetInt(i)
+
+	case reflect.Int32:
+		i, err := strconv.ParseInt(value, 10, 32)
+		if err != nil {
+			return err
+		}
+		v.SetInt(i)
+
+	case reflect.Int:
+		i, err := strconv.ParseInt(value, 10, 64)
+		if err != nil {
+			return err
+		}
+		v.SetInt(i)
+
+	case reflect.Bool:
+		b, err := strconv.ParseBool(value)
+		if err != nil {
+			return err
+		}
+		v.SetBool(b)
+
+	default:
+		return fmt.Errorf("unsupported kind %s", v.Type())
+	}
+	return nil
+}
+
+// @Title Update a field
+// @Description update a field of {{ctrlName}}
+// @Param	id		path 	string	true		"The id you want to update"
+// @Param	body		body 	string	true		"{ \"value\": value }"
+// @Success 200 {object} models.{{ctrlName}}
+// @Failure 403 :id is not int
+// @router /:id/:field [put]
+func (c *{{ctrlName}}Controller) PutField() {
+
+	idStr := c.Ctx.Input.Param(":id")
+	id, _ := strconv.Atoi(idStr)
+	v, err := models.Get{{ctrlName}}ById(id)
+	if err != nil {
+		c.Data["json"] = err.Error()
+	} else {
+		// get field name
+		fieldStr := c.Ctx.Input.Param(":field")
+
+		var value interface{}
+		if err := json.Unmarshal(c.Ctx.Input.RequestBody, &value); err == nil {
+			m := value.(map[string]interface{})
+
+			r := reflect.ValueOf(v).Elem()
+			if field := r.FieldByName(fieldStr); field.IsValid() {
+				if err := populate(field, m["value"].(string)); err == nil {
+					if err := models.Update{{ctrlName}}ById(v); err == nil {
+						c.Data["json"] = v
+					} else {
+						c.Data["json"] = err.Error()
+					}
+				} else {
+					c.Data["json"] = err.Error()
+				}
+			} else {
+				c.Data["json"] = "Field not found"
+			}
+		} else {
+			c.Data["json"] = err.Error()
+		}
 	}
 	c.ServeJSON()
 }
